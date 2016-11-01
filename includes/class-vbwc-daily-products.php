@@ -154,6 +154,12 @@ class Vbwc_Daily_Products {
 		$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_styles' );
 		$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_scripts' );
 
+		$this->loader->add_filter( 'woocommerce_settings_tabs_array', $plugin_admin, 'add_settings_tab', 50 );
+		$this->loader->add_filter( 'woocommerce_settings_tabs_wcdp_settings_tab', $plugin_admin, 'settings_tab' );
+		$this->loader->add_action( 'woocommerce_update_options_wcdp_settings_tab', $plugin_admin, 'update_settings' );
+		$this->loader->add_action( 'woocommerce_admin_field_wpeditor', $plugin_admin, 'display_editor' );
+		$this->loader->add_action( 'woocommerce_update_option_wpeditor', $plugin_admin, 'save_editor_val' );
+
 	}
 
 	/**
