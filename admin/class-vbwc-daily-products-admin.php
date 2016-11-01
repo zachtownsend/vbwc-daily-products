@@ -41,6 +41,11 @@ class Vbwc_Daily_Products_Admin {
 	private $version;
 
 	/**
+	 * Slug for Product Day taxonomy
+	 */
+	public $category_slug = 'wcdp-product-day';
+
+	/**
 	 * Initialize the class and set its properties.
 	 *
 	 * @since    1.0.0
@@ -52,76 +57,164 @@ class Vbwc_Daily_Products_Admin {
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
 
+		// set category slug to avoid conflicts with existing taxonomies
+		// $this->set_category_slug();
+
+	}
+
+	public function insert_days() {
+		$day_array = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+		foreach ($day_array as $day) {
+			if ( ! term_exists( $day, $this->category_slug ) ) {
+				wp_insert_term( $day, $this->category_slug, ['slug' => sanitize_title( 'WCDP ' . $day )] );
+			}
+		}
+	}
+
+	public function register_day_taxonomy() {
+		
+		/**
+		 * Product Day Taxonomy
+		 */
+		$labels = array(
+			'name'					=> _x( 'Product Days', 'Taxonomy plural name', $this->plugin_name ),
+			'singular_name'			=> _x( 'Product Day', 'Taxonomy singular name', $this->plugin_name ),
+			'search_items'			=> __( 'Search Product Days', $this->plugin_name ),
+			'popular_items'			=> __( 'Popular Product Days', $this->plugin_name ),
+			'all_items'				=> __( 'All Product Days', $this->plugin_name ),
+			'parent_item'			=> __( 'Parent Product Day', $this->plugin_name ),
+			'parent_item_colon'		=> __( 'Parent Product Day', $this->plugin_name ),
+			'edit_item'				=> __( 'Edit Product Day', $this->plugin_name ),
+			'update_item'			=> __( 'Update Product Day', $this->plugin_name ),
+			'add_new_item'			=> __( 'Add New Product Day', $this->plugin_name ),
+			'new_item_name'			=> __( 'New Product Day Name', $this->plugin_name ),
+			'add_or_remove_items'	=> __( 'Add or remove Product Days', $this->plugin_name ),
+			'choose_from_most_used'	=> __( 'Choose from most used', $this->plugin_name, $this->plugin_name ),
+			'menu_name'				=> __( 'Product Day', $this->plugin_name ),
+		);
+		
+		$args = array(
+			'labels'            => $labels,
+			'public'            => true,
+			'show_in_nav_menus' => true,
+			'show_admin_column' => false,
+			'hierarchical'      => true,
+			'show_tagcloud'     => false,
+			'show_ui'           => true,
+			'query_var'         => true,
+			'rewrite'           => true,
+			'query_var'         => true,
+			'capabilities'      => array(),
+		);
+		
+		register_taxonomy( $this->category_slug, array( 'product' ), $args );
+
+		$this->insert_days();
 	}
 
 	/**
 	 * Add new settings tab in Woocommerce > Settings
 	 */
 	public function add_settings_tab( $settings_tabs ) {
-		$settings_tabs['wcdp_settings_tab'] = __('First Order Discount', $this->plugin_name);
+		$settings_tabs['wcdp_settings_tab'] = __('Daily Product Management', $this->plugin_name);
 		return $settings_tabs;
+	}
+
+	public function add_section( $sections ) {
+		$sections = __('Test Section', $this->plugin_name);
 	}
 
 	public function settings_tab() {
 		woocommerce_admin_fields( $this->get_settings() );
 	}
 
+	public function get_product_cat_values() {
+		$product_cats = get_terms('product_cat');
+		$array = [];
+		foreach ($product_cats as $cat) {
+			$array[$cat->slug] = $cat->name;
+		}
+
+		return $array;
+	}
+
 	public function get_settings() {
+
 		$settings = array(
-			'general_section_title' => array(
-				'name' 		=> 'General Options',
-				'type' 		=> 'title',
-				'id' 		=> 'wcdp_settings_tab_general_title'
-			),
-			'enable_plugin' => array(
-				'name' 		=> __( 'Enable First Order Discount', $this->plugin_name ),
-				'type' 		=> 'checkbox',
-				'default' 	=> 'no',
-				'id' 		=> 'wcdp_settings_tab_enable'
-			),
-			'general_section_end' => array(
-				'type' 		=> 'sectionend',
-				'id' 		=> 'wcdp_settings_tab_general_end'
-			),
-			'popup_section_title' => array(
-				'name'		=> __( 'Popup Modal', $this->plugin_name ),
-				'type'		=> 'title',
-				'id'		=> 'wcdp_settings_tab_popup_section_title'
-			),
-			'popup_content'	=> array(
-				'name'		=> __( 'Modal Content Editor', $this->plugin_name ),
-				'type'		=> 'wpeditor',
-				'id'		=> 'wcdp_settings_tab_popup_popup_content'
-			),
-			'popup_section_end' => array(
-				'type' 		=> 'sectionend',
-				'id' 		=> 'wcdp_settings_tab_popup_section_end'
-			)
+			'days_title' => array(
+	            'name'     => __( 'Active Days', $this->plugin_name ),
+	            'type'     => 'title',
+	            'desc'     => '',
+	            'id'       => 'wcdp_days_section_title'
+	        ),
+	        'day_monday' => array(
+	            'name' => __( 'Monday', $this->plugin_name ),
+	            'type' => 'checkbox',
+	            'default' => 'no',
+	            'id'   => 'wcdp_days_section_monday'
+	        ),
+	        'day_tuesday' => array(
+	            'name' => __( 'Tuesday', $this->plugin_name ),
+	            'type' => 'checkbox',
+	            'default' => 'no',
+	            'id'   => 'wcdp_days_section_tuesday'
+	        ),
+	        'day_wednesday' => array(
+	            'name' => __( 'Wednesday', $this->plugin_name ),
+	            'type' => 'checkbox',
+	            'default' => 'no',
+	            'id'   => 'wcdp_days_section_wednesday'
+	        ),
+	        'day_thursday' => array(
+	            'name' => __( 'Thursday', $this->plugin_name ),
+	            'type' => 'checkbox',
+	            'default' => 'no',
+	            'id'   => 'wcdp_days_section_thursday'
+	        ),
+	        'day_friday' => array(
+	            'name' => __( 'Friday', $this->plugin_name ),
+	            'type' => 'checkbox',
+	            'default' => 'no',
+	            'id'   => 'wcdp_days_section_friday'
+	        ),
+	        'day_saturday' => array(
+	            'name' => __( 'Saturday', $this->plugin_name ),
+	            'type' => 'checkbox',
+	            'default' => 'no',
+	            'id'   => 'wcdp_days_section_saturday'
+	        ),
+	        'day_sunday' => array(
+	            'name' => __( 'Sunday', $this->plugin_name ),
+	            'type' => 'checkbox',
+	            'default' => 'no',
+	            'id'   => 'wcdp_days_section_sunday'
+	        ),
+	        'days_end' => array(
+	             'type' => 'sectionend',
+	             'id' => 'wc_settings_tab_demo_section_end'
+	        ),
+	        'active_cats_title' => array(
+	        	'type' => 'title',
+	        	'name' => __('Active Categories', $this->plugin_name),
+	        	'id' => 'wcdp_active_cats_title'
+	        ),
+	        'active_cats' => array(
+	        	'name' => __('Active Categories')
+	        	'type' => 'multiselect',
+	        	'options' => $this->get_product_cat_values(),
+	        	'id' => 'wcdp_active_cats'
+	        ),
+	        'active_cats_end' => array(
+	        	'type' => 'sectionend',
+	        	'id' => 'wcdp_active_cats_sectionend'
+	        )
 		);
-		return apply_filters( 'wc_settings_tab_wcdp_settings_tab', $settings );;
+		return apply_filters( 'wc_settings_tab_wcdp_settings_tab', $settings );
 	}
 
 	public function update_settings() {
 		woocommerce_update_options( $this->get_settings() );
-	}
-
-	public function display_editor( $value ) {
-		$option_value = WC_Admin_Settings::get_option( $value['id'], $value['default'] ); ?>
-		<tr valign="top">
-			<th scope="row" class="titledesc">
-				<label for="<?php echo esc_attr( $value['id'] ); ?>"><?php echo esc_html( $value['title'] ); ?></label>
-			</th>
-			<td class="forminp forminp-<?php echo sanitize_title( $value['type'] ) ?>">
-				<?php echo $value['desc']; ?>
-				<?php wp_editor( $option_value, esc_attr( $value['id'] ) ); ?>
-			</td>
-		</tr>
-	<?php
-	}
-
-	public function save_editor_val( $value ) {
-		$email_text = $_POST[$value['id']];
-		update_option( $value['id'], $email_text  );
 	}
 
 	/**
