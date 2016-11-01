@@ -144,7 +144,7 @@ class Vbwc_Daily_Products_Admin {
 	}
 
 	public function get_settings() {
-
+		// https://www.skyverge.com/blog/add-custom-options-to-woocommerce-settings/
 		$settings = array(
 			'days_title' => array(
 	            'name'     => __( 'Active Days', $this->plugin_name ),
