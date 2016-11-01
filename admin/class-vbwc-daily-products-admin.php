@@ -139,6 +139,10 @@ class Vbwc_Daily_Products_Admin {
 		return $array;
 	}
 
+	public function test( $value ) {
+		var_dump( $value );
+	}
+
 	public function get_settings() {
 
 		$settings = array(
@@ -151,6 +155,7 @@ class Vbwc_Daily_Products_Admin {
 	        'day_monday' => array(
 	            'name' => __( 'Monday', $this->plugin_name ),
 	            'type' => 'checkbox',
+	            // 'checkboxgroup' => 'start',
 	            'default' => 'no',
 	            'id'   => 'wcdp_days_section_monday'
 	        ),
@@ -187,6 +192,7 @@ class Vbwc_Daily_Products_Admin {
 	        'day_sunday' => array(
 	            'name' => __( 'Sunday', $this->plugin_name ),
 	            'type' => 'checkbox',
+	            // 'checkboxgroup' => 'end',
 	            'default' => 'no',
 	            'id'   => 'wcdp_days_section_sunday'
 	        ),
@@ -200,7 +206,7 @@ class Vbwc_Daily_Products_Admin {
 	        	'id' => 'wcdp_active_cats_title'
 	        ),
 	        'active_cats' => array(
-	        	'name' => __('Active Categories')
+	        	'name' => __('Active Categories'),
 	        	'type' => 'multiselect',
 	        	'options' => $this->get_product_cat_values(),
 	        	'id' => 'wcdp_active_cats'
@@ -208,6 +214,10 @@ class Vbwc_Daily_Products_Admin {
 	        'active_cats_end' => array(
 	        	'type' => 'sectionend',
 	        	'id' => 'wcdp_active_cats_sectionend'
+	        ),
+	        'test' => array(
+	        	'type' => 'day',
+	        	'id' => 'test'
 	        )
 		);
 		return apply_filters( 'wc_settings_tab_wcdp_settings_tab', $settings );
