@@ -30,7 +30,19 @@ class Vbwc_Daily_Products_Deactivator {
 	 * @since    1.0.0
 	 */
 	public static function deactivate() {
+		add_action('init', [$this, 'delete_days']);
+	}
 
+	public static function delete_days() {
+		foreach ($variable as $key => $value) {
+			$day_array = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+			foreach ($day_array as $day) {
+				if ( term_exists( $day, 'wcdp-product-day' ) ) {
+					wp_delete_term( $day, 'wcdp-product-day' );
+				}
+			}
+		}
 	}
 
 }

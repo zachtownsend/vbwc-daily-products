@@ -46,6 +46,16 @@ class Vbwc_Daily_Products_Admin {
 	public $category_slug = 'wcdp-product-day';
 
 	/**
+	 * Array storing the days of the week
+	 */
+	public $day_array = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+	/**
+	 * Store the active days
+	 */
+	public $active_days = array();
+
+	/**
 	 * Initialize the class and set its properties.
 	 *
 	 * @since    1.0.0
@@ -56,16 +66,123 @@ class Vbwc_Daily_Products_Admin {
 
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
-
 		// set category slug to avoid conflicts with existing taxonomies
 		// $this->set_category_slug();
+		$this->get_day_settings();
 
 	}
 
-	public function insert_days() {
-		$day_array = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+	public function init_acf_settings() {
+		$this->get_day_settings();
+		// var_dump($this->active_days);
+		$this->add_acf_options_page();
+		$this->add_acf_fields();
+	}
 
-		foreach ($day_array as $day) {
+	public function get_day_settings() {
+		foreach ($this->day_array as $day) {
+			if ( get_option( 'wcdp_day_' . sanitize_title( $day ) ) === 'yes' ) {
+				$this->active_days[] = $day;
+			}
+		}
+	}
+
+	public function get_limited_categories() {
+		$category_array = array();
+
+		return $category_array;
+	}
+
+	public function add_acf_options_page() {
+		// Product Settings
+		acf_add_options_sub_page( 
+			array(
+				'page_title' => 'Product Settings',
+				'parent_slug' => 'edit.php?post_type=product',
+				'post_id' => 'product_settings',
+				'capability' => 'manage_options'
+			) 
+		);
+	}
+
+	public function get_acf_fields() {
+
+		$field_array = array();
+		
+		foreach ($this->active_days as $day) {
+			$sanitized_day = sanitize_title( $day );
+
+			$field = array(
+				'key' => 'field_wcdp-' . $sanitized_day,
+				'label' => $day,
+				'name' => 'product_day_' . $sanitized_day,
+				'type' => 'relationship',
+				'instructions' => '',
+				'required' => 1,
+				'conditional_logic' => 0,
+				'wrapper' => array (
+					'width' => '',
+					'class' => '',
+					'id' => '',
+				),
+				'post_type' => array (
+					0 => 'product',
+				),
+				'taxonomy' => array (
+					0 => 'product_cat:main-meal',
+				),
+				'filters' => array (
+					0 => 'search'
+				),
+				'elements' => array (
+					0 => 'featured_image',
+				),
+				'min' => 3,
+				'max' => 3,
+				'return_format' => 'object',
+			);
+
+			array_push($field_array, $field);
+		}
+
+		return $field_array;
+	}
+
+	public function add_acf_fields() {
+		if( function_exists('acf_add_local_field_group') ):
+
+		acf_add_local_field_group(array (
+			'key' => 'group_58175a8ccb49e',
+			'title' => 'Product Day Selector',
+			'fields' => $this->get_acf_fields(),
+			'location' => array (
+				array (
+					array (
+						'param' => 'options_page',
+						'operator' => '==',
+						'value' => 'acf-options-product-settings',
+					),
+				),
+			),
+			'menu_order' => 0,
+			'position' => 'normal',
+			'style' => 'default',
+			'label_placement' => 'top',
+			'instruction_placement' => 'label',
+			'hide_on_screen' => '',
+			'active' => 1,
+			'description' => '',
+		));
+
+		endif;
+	}
+
+	public function get_dependencies() {
+		require plugin_dir_path( dirname(__FILE__) ) . 'includes/class-vbwc-daily-products-selector.php';
+	}
+
+	public function insert_days() {
+		foreach ($this->day_array as $day) {
 			if ( ! term_exists( $day, $this->category_slug ) ) {
 				wp_insert_term( $day, $this->category_slug, ['slug' => sanitize_title( 'WCDP ' . $day )] );
 			}
@@ -121,17 +238,13 @@ class Vbwc_Daily_Products_Admin {
 		return $settings_tabs;
 	}
 
-	public function add_section( $sections ) {
-		$sections = __('Test Section', $this->plugin_name);
-	}
-
 	public function settings_tab() {
 		woocommerce_admin_fields( $this->get_settings() );
 	}
 
 	public function get_product_cat_values() {
 		$product_cats = get_terms('product_cat');
-		$array = [];
+		$array = ['null' => '-- Please select --'];
 		foreach ($product_cats as $cat) {
 			$array[$cat->slug] = $cat->name;
 		}
@@ -139,86 +252,91 @@ class Vbwc_Daily_Products_Admin {
 		return $array;
 	}
 
-	public function test( $value ) {
-		var_dump( $value );
-	}
-
 	public function get_settings() {
 		// https://www.skyverge.com/blog/add-custom-options-to-woocommerce-settings/
 		$settings = array(
-			'days_title' => array(
-	            'name'     => __( 'Active Days', $this->plugin_name ),
-	            'type'     => 'title',
-	            'desc'     => '',
-	            'id'       => 'wcdp_days_section_title'
-	        ),
-	        'day_monday' => array(
-	            'name' => __( 'Monday', $this->plugin_name ),
-	            'type' => 'checkbox',
-	            // 'checkboxgroup' => 'start',
-	            'default' => 'no',
-	            'id'   => 'wcdp_days_section_monday'
-	        ),
-	        'day_tuesday' => array(
-	            'name' => __( 'Tuesday', $this->plugin_name ),
-	            'type' => 'checkbox',
-	            'default' => 'no',
-	            'id'   => 'wcdp_days_section_tuesday'
-	        ),
-	        'day_wednesday' => array(
-	            'name' => __( 'Wednesday', $this->plugin_name ),
-	            'type' => 'checkbox',
-	            'default' => 'no',
-	            'id'   => 'wcdp_days_section_wednesday'
-	        ),
-	        'day_thursday' => array(
-	            'name' => __( 'Thursday', $this->plugin_name ),
-	            'type' => 'checkbox',
-	            'default' => 'no',
-	            'id'   => 'wcdp_days_section_thursday'
-	        ),
-	        'day_friday' => array(
-	            'name' => __( 'Friday', $this->plugin_name ),
-	            'type' => 'checkbox',
-	            'default' => 'no',
-	            'id'   => 'wcdp_days_section_friday'
-	        ),
-	        'day_saturday' => array(
-	            'name' => __( 'Saturday', $this->plugin_name ),
-	            'type' => 'checkbox',
-	            'default' => 'no',
-	            'id'   => 'wcdp_days_section_saturday'
-	        ),
-	        'day_sunday' => array(
-	            'name' => __( 'Sunday', $this->plugin_name ),
-	            'type' => 'checkbox',
-	            // 'checkboxgroup' => 'end',
-	            'default' => 'no',
-	            'id'   => 'wcdp_days_section_sunday'
-	        ),
-	        'days_end' => array(
-	             'type' => 'sectionend',
-	             'id' => 'wc_settings_tab_demo_section_end'
-	        ),
-	        'active_cats_title' => array(
-	        	'type' => 'title',
+			array(
+				'title' => __( 'Day Settings', $this->plugin_name ),
+				'type' 	=> 'title',
+				'desc' 	=> '',
+				'id' 	=> 'wcdp_day_settings',
+			),
+			array(
+				'title'         => __( 'Active Days', $this->plugin_name ),
+				'desc' => __( 'Monday', $this->plugin_name ),
+				'id' => 'wcdp_day_monday',
+				'default' => 'no',
+				'type' => 'checkbox',
+				'checkboxgroup' => 'start',
+				'autoload'      => false,
+			),
+			array(
+				'desc' => __( 'Tuesday', $this->plugin_name ),
+				'id' => 'wcdp_day_tuesday',
+				'default' => 'no',
+				'type' => 'checkbox',
+				'autoload'      => false,
+				'checkboxgroup' => ''
+			),
+			array(
+				'desc' => __( 'Wednesday', $this->plugin_name ),
+				'id' => 'wcdp_day_wednesday',
+				'default' => 'no',
+				'type' => 'checkbox',
+				'autoload'      => false,
+				'checkboxgroup' => ''
+			),
+			array(
+				'desc' => __( 'Thursday', $this->plugin_name ),
+				'id' => 'wcdp_day_thursday',
+				'default' => 'no',
+				'type' => 'checkbox',
+				'autoload'      => false,
+				'checkboxgroup' => ''
+			),
+			array(
+				'desc' => __( 'Friday', $this->plugin_name ),
+				'id' => 'wcdp_day_friday',
+				'default' => 'no',
+				'type' => 'checkbox',
+				'autoload'      => false,
+				'checkboxgroup' => ''
+			),
+			array(
+				'desc' => __( 'Saturday', $this->plugin_name ),
+				'id' => 'wcdp_day_saturday',
+				'default' => 'no',
+				'type' => 'checkbox',
+				'autoload'      => false,
+				'checkboxgroup' => ''
+			),
+			array(
+				'desc' => __( 'Sunday', $this->plugin_name ),
+				'id' => 'wcdp_day_sunday',
+				'default' => 'no',
+				'type' => 'checkbox',
+				'autoload'      => false,
+				'checkboxgroup' => 'end'
+			),
+			array(
+				'title' => __( 'Limit to Categories', $this->plugin_name ),
+				'desc' => __( 'Would you like to limit to specific categories?', $this->plugin_name ),
+				'type' => 'checkbox',
+				'default' => 'no',
+				'id' => 'wcdp_limit_to_cat'
+			),
+			array(
 	        	'name' => __('Active Categories', $this->plugin_name),
-	        	'id' => 'wcdp_active_cats_title'
-	        ),
-	        'active_cats' => array(
-	        	'name' => __('Active Categories'),
 	        	'type' => 'multiselect',
+	        	'default' => 'none',
 	        	'options' => $this->get_product_cat_values(),
-	        	'id' => 'wcdp_active_cats'
+	        	'id' => 'wcdp_active_cats',
+	        	'show_if_checked' => 'yes'
 	        ),
-	        'active_cats_end' => array(
-	        	'type' => 'sectionend',
-	        	'id' => 'wcdp_active_cats_sectionend'
-	        ),
-	        'test' => array(
-	        	'type' => 'day',
-	        	'id' => 'test'
-	        )
+			array(
+				'type' 	=> 'sectionend',
+				'id' 	=> 'wcdp_days_sectionend'
+			)
 		);
 		return apply_filters( 'wc_settings_tab_wcdp_settings_tab', $settings );
 	}

@@ -157,6 +157,8 @@ class Vbwc_Daily_Products {
 		// Register Product Day taxonomy
 		$this->loader->add_action('init', $plugin_admin, 'register_day_taxonomy');
 
+		$this->loader->add_action('wp_loaded', $plugin_admin, 'init_acf_settings', 100);
+
 		// Add Settings tab in Woocommerce
 		$this->loader->add_filter( 'woocommerce_settings_tabs_array', $plugin_admin, 'add_settings_tab', 50 );
 
