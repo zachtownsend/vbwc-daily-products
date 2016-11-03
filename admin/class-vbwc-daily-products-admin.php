@@ -66,15 +66,34 @@ class Vbwc_Daily_Products_Admin {
 
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
-		// set category slug to avoid conflicts with existing taxonomies
-		// $this->set_category_slug();
+
 		$this->get_day_settings();
 
+		// On save of product day settings
+		add_action('acf/save_post', [$this, 'update_products'], 999);
+		
+		// Reset product day category at given time
+		add_action('weekly_day_reset', [$this, 'weekly_day_reset']);
+
+		// Reset product stock
+		add_action('daily_stock_reset', [$this, 'daily_stock_reset']);
+
+		// On Settings update
+		add_action( 'woocommerce_update_options_wcdp_settings_tab', [$this, 'update_settings'] );
+
+		add_action( 'woocommerce_settings_saved', [$this, 'settings_saved']);
+
+	}
+
+	public function error_log( $message ) {
+		ob_start();
+		var_export( $message );
+		$message = ob_get_clean();
+		error_log( $message );
 	}
 
 	public function init_acf_settings() {
 		$this->get_day_settings();
-		// var_dump($this->active_days);
 		$this->add_acf_options_page();
 		$this->add_acf_fields();
 	}
@@ -87,12 +106,6 @@ class Vbwc_Daily_Products_Admin {
 		}
 	}
 
-	public function get_limited_categories() {
-		$category_array = array();
-
-		return $category_array;
-	}
-
 	public function add_acf_options_page() {
 		// Product Settings
 		acf_add_options_sub_page( 
@@ -103,6 +116,25 @@ class Vbwc_Daily_Products_Admin {
 				'capability' => 'manage_options'
 			) 
 		);
+	}
+
+	public function get_acf_field_taxonomies() {
+		$cat_array = '';
+
+		if ( get_option( 'wcdp_limit_to_cat' ) === 'yes' ) {
+			$chosen_cats = get_option( 'wcdp_active_cats' );
+
+			$cat_array = array();
+
+			foreach ($chosen_cats as $cat) {
+				if ( 'null' !== $cat) {
+					$cat_array[] = 'product_cat:' . $cat;
+				}
+				
+			}
+		}
+
+		return $cat_array;
 	}
 
 	public function get_acf_fields() {
@@ -128,9 +160,7 @@ class Vbwc_Daily_Products_Admin {
 				'post_type' => array (
 					0 => 'product',
 				),
-				'taxonomy' => array (
-					0 => 'product_cat:main-meal',
-				),
+				'taxonomy' => $this->get_acf_field_taxonomies(),
 				'filters' => array (
 					0 => 'search'
 				),
@@ -243,7 +273,7 @@ class Vbwc_Daily_Products_Admin {
 	}
 
 	public function get_product_cat_values() {
-		$product_cats = get_terms('product_cat');
+		$product_cats = get_terms('product_cat', array( 'hide_empty' => false ) );
 		$array = ['null' => '-- Please select --'];
 		foreach ($product_cats as $cat) {
 			$array[$cat->slug] = $cat->name;
@@ -252,9 +282,33 @@ class Vbwc_Daily_Products_Admin {
 		return $array;
 	}
 
+	public function get_time_options() {
+		$option_array = array();
+		$hour = 0;
+		while ($hour < 24) {
+			$hour = $hour > 9 ? $hour : '0' . $hour;
+			$option_array[$hour . ':00'] = $hour . ':00';
+			$option_array[$hour . ':30'] = $hour . ':30';
+			$hour++;
+		}
+		return $option_array;
+	}
+
+	public function get_day_options() {
+		$option_array = array();
+		foreach ($this->day_array as $day) {
+			$option_array[$day] = $day;
+		}
+		return $option_array;
+	}
+
 	public function get_settings() {
 		// https://www.skyverge.com/blog/add-custom-options-to-woocommerce-settings/
 		$settings = array(
+			
+			/**
+			 * Day Settings
+			 */
 			array(
 				'title' => __( 'Day Settings', $this->plugin_name ),
 				'type' 	=> 'title',
@@ -263,86 +317,302 @@ class Vbwc_Daily_Products_Admin {
 			),
 			array(
 				'title'         => __( 'Active Days', $this->plugin_name ),
-				'desc' => __( 'Monday', $this->plugin_name ),
-				'id' => 'wcdp_day_monday',
-				'default' => 'no',
-				'type' => 'checkbox',
+				'desc'          => __( 'Monday', $this->plugin_name ),
+				'id'            => 'wcdp_day_monday',
+				'default'       => 'no',
+				'type'          => 'checkbox',
 				'checkboxgroup' => 'start',
 				'autoload'      => false,
 			),
 			array(
-				'desc' => __( 'Tuesday', $this->plugin_name ),
-				'id' => 'wcdp_day_tuesday',
-				'default' => 'no',
-				'type' => 'checkbox',
+				'desc'          => __( 'Tuesday', $this->plugin_name ),
+				'id'            => 'wcdp_day_tuesday',
+				'default'       => 'no',
+				'type'          => 'checkbox',
 				'autoload'      => false,
 				'checkboxgroup' => ''
 			),
 			array(
-				'desc' => __( 'Wednesday', $this->plugin_name ),
-				'id' => 'wcdp_day_wednesday',
-				'default' => 'no',
-				'type' => 'checkbox',
+				'desc'          => __( 'Wednesday', $this->plugin_name ),
+				'id'            => 'wcdp_day_wednesday',
+				'default'       => 'no',
+				'type'          => 'checkbox',
 				'autoload'      => false,
 				'checkboxgroup' => ''
 			),
 			array(
-				'desc' => __( 'Thursday', $this->plugin_name ),
-				'id' => 'wcdp_day_thursday',
-				'default' => 'no',
-				'type' => 'checkbox',
+				'desc'          => __( 'Thursday', $this->plugin_name ),
+				'id'            => 'wcdp_day_thursday',
+				'default'       => 'no',
+				'type'          => 'checkbox',
 				'autoload'      => false,
 				'checkboxgroup' => ''
 			),
 			array(
-				'desc' => __( 'Friday', $this->plugin_name ),
-				'id' => 'wcdp_day_friday',
-				'default' => 'no',
-				'type' => 'checkbox',
+				'desc'          => __( 'Friday', $this->plugin_name ),
+				'id'            => 'wcdp_day_friday',
+				'default'       => 'no',
+				'type'          => 'checkbox',
 				'autoload'      => false,
 				'checkboxgroup' => ''
 			),
 			array(
-				'desc' => __( 'Saturday', $this->plugin_name ),
-				'id' => 'wcdp_day_saturday',
-				'default' => 'no',
-				'type' => 'checkbox',
+				'desc'          => __( 'Saturday', $this->plugin_name ),
+				'id'            => 'wcdp_day_saturday',
+				'default'       => 'no',
+				'type'          => 'checkbox',
 				'autoload'      => false,
 				'checkboxgroup' => ''
 			),
 			array(
-				'desc' => __( 'Sunday', $this->plugin_name ),
-				'id' => 'wcdp_day_sunday',
-				'default' => 'no',
-				'type' => 'checkbox',
+				'desc'          => __( 'Sunday', $this->plugin_name ),
+				'id'            => 'wcdp_day_sunday',
+				'default'       => 'no',
+				'type'          => 'checkbox',
 				'autoload'      => false,
 				'checkboxgroup' => 'end'
 			),
 			array(
-				'title' => __( 'Limit to Categories', $this->plugin_name ),
-				'desc' => __( 'Would you like to limit to specific categories?', $this->plugin_name ),
-				'type' => 'checkbox',
+				'title'   => __( 'Limit to Categories', $this->plugin_name ),
+				'desc'    => __( 'Would you like to limit to specific categories?', $this->plugin_name ),
+				'type'    => 'checkbox',
 				'default' => 'no',
-				'id' => 'wcdp_limit_to_cat'
+				'id'      => 'wcdp_limit_to_cat'
 			),
 			array(
-	        	'name' => __('Active Categories', $this->plugin_name),
-	        	'type' => 'multiselect',
-	        	'default' => 'none',
-	        	'options' => $this->get_product_cat_values(),
-	        	'id' => 'wcdp_active_cats',
-	        	'show_if_checked' => 'yes'
+				'name'            => __('Active Categories', $this->plugin_name),
+				'type'            => 'multiselect',
+				'default'         => 'none',
+				'options'         => $this->get_product_cat_values(),
+				'id'              => 'wcdp_active_cats',
+				'show_if_checked' => 'yes'
 	        ),
 			array(
 				'type' 	=> 'sectionend',
 				'id' 	=> 'wcdp_days_sectionend'
-			)
+			),
+
+			/**
+			 * Weekly Product Reset Settings
+			 */
+			array(
+				'title' => __( 'Weekly Reset', $this->plugin_name),
+				'type'  => 'title',
+				'desc'  => '',
+				'id'    => 'wcdp_weekly_reset_title'
+			),
+			array(
+				'title'   => __( 'Weekly reset', $this->plugin_name ),
+				'desc'    => __( 'Enable weekly reset', $this->plugin_name ),
+				'type'    => 'checkbox',
+				'default' => 'no',
+				'id'      => 'wcdp_weekly_reset_enabled'
+	        ),
+	        array(
+				'desc'    => __( 'Day to reset', $this->plugin_name ),
+				'type'    => 'select',
+				'default' => 'Saturday',
+				'options' => $this->get_day_options(),
+				'id'      => 'wcdp_weekly_reset_day'
+	        ),
+	        array(
+				'desc'    => __( 'Time to reset', $this->plugin_name ),
+				'type'    => 'select',
+				'default' => '00:00',
+				'options' => $this->get_time_options(),
+				'id'      => 'wcdp_weekly_reset_time'
+	        ),
+			array(
+				'type' => 'sectionend',
+				'id'   => 'wcdp_weekly_reset_sectionend'
+			),
+
+			/**
+			 * Scheduled Stock Reset
+			 */
+			array(
+				'title' => __( 'Daily Stock Reset', $this->plugin_name),
+				'type'  => 'title',
+				'desc'  => '',
+				'id'    => 'wcdp_stock_reset_title'
+			),
+			array(
+				'title'   => __( 'Stock reset', $this->plugin_name ),
+				'desc'    => __( 'Enable daily stock reset', $this->plugin_name ),
+				'type'    => 'checkbox',
+				'default' => 'no',
+				'id'      => 'wcdp_stock_reset_enabled'
+	        ),
+	        array(
+				'name'            => __('Categories to reset', $this->plugin_name),
+				'desc'            => __( '<b>Warning!</b> Make sure this is set correctly or you will reset the stock on the wrong products!' ),
+				'type'            => 'multiselect',
+				'default'         => 'null',
+				'options'         => $this->get_product_cat_values(),
+				'id'              => 'wcdp_stock_reset_cats',
+				'show_if_checked' => 'yes'
+	        ),
+	        array(
+				'desc'    => __( 'Time to reset stock', $this->plugin_name ),
+				'type'    => 'select',
+				'default' => '13:30',
+				'options' => $this->get_time_options(),
+				'id'      => 'wcdp_stock_reset_time'
+	        ),
+			array(
+				'type' => 'sectionend',
+				'id'   => 'wcdp_stock_reset_sectionend'
+			),
 		);
 		return apply_filters( 'wc_settings_tab_wcdp_settings_tab', $settings );
 	}
 
 	public function update_settings() {
 		woocommerce_update_options( $this->get_settings() );
+	}
+
+	public function get_day_terms_id_array() {
+		$terms = get_terms( $this->category_slug );
+		$id_array = array();
+
+		foreach ($terms as $term) {
+			$id_array[] = $term->term_id;
+		}
+
+		return $id_array;
+	}
+
+	public function reset_day_taxonomy() {
+		// Get array of all the term ids
+		$terms_array = $this->get_day_terms_id_array();
+		
+		// Create a custom loop of all the products that has any of
+		// the terms
+		$all_products = new WP_Query(array(
+				'post_type' => 'product',
+				'posts_per_page' => -1,
+				'tax_query' => array(
+					array(
+						'taxonomy' => $this->category_slug,
+						'field' => 'id',
+						'terms' => $terms_array
+					)
+				)
+			)
+		);
+
+		// Loop through and remove the terms from the post
+		if ( $all_products->have_posts() ) {
+			while ( $all_products->have_posts() ) {
+				$all_products->the_post();
+				$log = wp_remove_object_terms( get_the_id(), $terms_array, $this->category_slug );
+			}
+			wp_reset_postdata();
+		}
+	}
+
+	public function reset_stock() {
+		$args = array(
+			'post_type' => 'product',
+			'posts_per_page' => -1
+		);
+
+		if ( $chosen_cats = get_option( 'wcdp_stock_reset_cats' ) ) {
+			$terms_array = array();
+			
+			foreach ($chosen_cats as $cat) {
+				$terms_array[] = $cat->term_id;
+			}
+			$args['tax_query'] = array(
+				array(
+					'taxonomy' => 'product_cat',
+					'field' => 'id',
+					'terms' => $terms_array
+				)
+			);
+		}
+
+		$all_products = new WP_Query($args);
+
+		if ($all_products->have_posts()) {
+			while ($all_products->have_posts()) {
+				$all_products->the_post();
+				$the_product = wc_get_product( get_the_id() );
+				$the_product->set_stock(0);
+			}
+		}
+	}
+
+	public function apply_days_to_products( $post_id ) {
+		
+		// First remove day taxonomy from all products that have it
+		// --------------------------------------------------------
+		$this->reset_day_taxonomy();
+		
+
+		// Now apply the terms back onto the chosen products
+		// -------------------------------------------------
+		if ( 'product_settings' === $post_id && ! empty( $_POST['acf'] ) ) {
+			foreach ($_POST['acf'] as $day => $products) {
+				$term_slug = str_replace('field_', '', $day);
+				foreach ($products as $product_id) {
+					wp_set_object_terms($product_id, $term_slug, $this->category_slug, true);
+				}
+			}
+
+		}
+	}
+
+	public function schedule_reset_day() {
+		if ( ! wp_next_scheduled( 'weekly_day_reset' ) ) {
+			wp_schedule_event( strtotime( get_option( 'wcdp_weekly_reset_time' ) . ':00' ), 'daily', 'weekly_day_reset' );
+		}
+	}
+
+	public function clear_schedule_reset_day() {
+		if ( wp_next_scheduled( 'weekly_day_reset' ) ) {
+			wp_clear_scheduled_hook( 'weekly_day_reset' );
+		}
+	}
+
+	public function schedule_reset_stock() {
+		if ( ! wp_next_scheduled( 'daily_stock_reset' ) ) {
+			wp_schedule_event( strtotime( get_option( 'wcdp_stock_reset_time' ) . ':00' ), 'hourly', 'daily_stock_reset' );
+		}
+	}
+
+	public function clear_schedule_reset_stock() {
+		if ( wp_next_scheduled( 'daily_stock_reset' ) ) {
+			wp_clear_scheduled_hook( 'daily_stock_reset' );
+		}
+	}
+
+	public function daily_stock_reset() {
+		$this->reset_stock();
+	}
+
+	public function weekly_day_reset() {
+		if ( get_option( 'wcdp_weekly_reset_day' ) === date('l') ) {
+			$this->reset_day_taxonomy();
+		}
+	}
+
+	public function update_products( $post_id ) {
+		$this->reset_day_taxonomy();
+		$this->apply_days_to_products( $post_id );
+	}
+
+	public function settings_saved() {
+
+		/**
+		 * Manage schedule
+		 */
+		$this->error_log( get_option( 'wcdp_weekly_reset_enabled' ) );
+		if ( get_option( 'wcdp_weekly_reset_enabled' ) === 'yes' ) {
+			$this->schedule_reset_day();
+		} else {
+			$this->clear_schedule_reset_day();
+		}
 	}
 
 	/**
