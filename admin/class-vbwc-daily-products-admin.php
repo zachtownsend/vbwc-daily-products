@@ -92,20 +92,28 @@ class Vbwc_Daily_Products_Admin {
 		error_log( $message );
 	}
 
+	/**
+	 * Advanced Custom Fields methods
+	 */
+
+	// Initialise ACF Settings
 	public function init_acf_settings() {
 		$this->get_day_settings();
 		$this->add_acf_options_page();
-		$this->add_acf_fields();
-	}
 
-	public function get_day_settings() {
-		foreach ($this->day_array as $day) {
-			if ( get_option( 'wcdp_day_' . sanitize_title( $day ) ) === 'yes' ) {
-				$this->active_days[] = $day;
+		if ( post_type_exists( 'pickup-point' ) ) {
+			$pups = get_posts( 'post_type=pickup-point' );
+
+			foreach ($pups as $pup) {
+				$this->add_acf_group($pup);
 			}
-		}
+			
+		} else {
+			$this->add_acf_group();
+		}		
 	}
 
+	// Add options page
 	public function add_acf_options_page() {
 		// Product Settings
 		acf_add_options_sub_page( 
@@ -118,6 +126,7 @@ class Vbwc_Daily_Products_Admin {
 		);
 	}
 
+	// Gets the taxonomies to limit the ACF product search to
 	public function get_acf_field_taxonomies() {
 		$cat_array = '';
 
@@ -137,17 +146,24 @@ class Vbwc_Daily_Products_Admin {
 		return $cat_array;
 	}
 
-	public function get_acf_fields() {
+	// Gets the relationship fields to use
+	public function get_acf_fields( $pup ) {
+
+		if ( $pup ) {
+			$suffix = '_' . $pup->ID;
+		} else {
+			$suffix = '';
+		}
 
 		$field_array = array();
 		
 		foreach ($this->active_days as $day) {
-			$sanitized_day = sanitize_title( $day );
+			$suffix = sanitize_title( $day ) . $suffix;
 
 			$field = array(
-				'key' => 'field_wcdp-' . $sanitized_day,
+				'key' => 'field_wcdp-' . $suffix,
 				'label' => $day,
-				'name' => 'product_day_' . $sanitized_day,
+				'name' => 'product_day_' . $suffix,
 				'type' => 'relationship',
 				'instructions' => '',
 				'required' => 1,
@@ -178,13 +194,23 @@ class Vbwc_Daily_Products_Admin {
 		return $field_array;
 	}
 
-	public function add_acf_fields() {
+	// Adds the ACF group
+	public function add_acf_group( $pup ) {
+
+		if ( $pup ) {
+			$suffix = '_' . $pup->ID;
+			$title = 'Pick Up Point: ' . $pup->post_title;
+		} else {
+			$suffix = '';
+			$title = 'Product Day Selector';
+		}
+
 		if( function_exists('acf_add_local_field_group') ):
 
 		acf_add_local_field_group(array (
-			'key' => 'group_58175a8ccb49e',
-			'title' => 'Product Day Selector',
-			'fields' => $this->get_acf_fields(),
+			'key' => 'group_wcdp' . $suffix,
+			'title' => $title,
+			'fields' => $this->get_acf_fields($pup),
 			'location' => array (
 				array (
 					array (
@@ -207,10 +233,19 @@ class Vbwc_Daily_Products_Admin {
 		endif;
 	}
 
-	public function get_dependencies() {
-		require plugin_dir_path( dirname(__FILE__) ) . 'includes/class-vbwc-daily-products-selector.php';
+	/**
+	 * Utility methods
+	 */
+
+	public function get_day_settings() {
+		foreach ($this->day_array as $day) {
+			if ( get_option( 'wcdp_day_' . sanitize_title( $day ) ) === 'yes' ) {
+				$this->active_days[] = $day;
+			}
+		}
 	}
 
+	// Insert days of the week into Product Day taxonomy
 	public function insert_days() {
 		foreach ($this->day_array as $day) {
 			if ( ! term_exists( $day, $this->category_slug ) ) {
@@ -219,6 +254,57 @@ class Vbwc_Daily_Products_Admin {
 		}
 	}
 
+	// Get product categories for select field types
+	public function get_product_cat_values() {
+		$product_cats = get_terms('product_cat', array( 'hide_empty' => false ) );
+		$array = ['null' => '-- Please select --'];
+		foreach ($product_cats as $cat) {
+			$array[$cat->slug] = $cat->name;
+		}
+
+		return $array;
+	}
+
+	// Gets the time options for select field types
+	public function get_time_options() {
+		$option_array = array();
+		$hour = 0;
+		while ($hour < 24) {
+			$hour = $hour > 9 ? $hour : '0' . $hour;
+			$option_array[$hour . ':00'] = $hour . ':00';
+			$option_array[$hour . ':30'] = $hour . ':30';
+			$hour++;
+		}
+		return $option_array;
+	}
+
+	// Gets the day options for select field types
+	public function get_day_options() {
+		$option_array = array();
+		foreach ($this->day_array as $day) {
+			$option_array[$day] = $day;
+		}
+		return $option_array;
+	}
+
+	// Get array of day category ID's
+	public function get_day_terms_id_array() {
+		$terms = get_terms( $this->category_slug );
+		$id_array = array();
+
+		foreach ($terms as $term) {
+			$id_array[] = $term->term_id;
+		}
+
+		return $id_array;
+	}
+	
+
+	/**
+	 * General Initialisation
+	 */
+	
+	// Register the Day taxonomy
 	public function register_day_taxonomy() {
 		
 		/**
@@ -260,48 +346,19 @@ class Vbwc_Daily_Products_Admin {
 		$this->insert_days();
 	}
 
+
+
 	/**
-	 * Add new settings tab in Woocommerce > Settings
+	 * Woocommerce Admin
 	 */
+	
+	// Add Settings tab to Woocommerce > Settings
 	public function add_settings_tab( $settings_tabs ) {
 		$settings_tabs['wcdp_settings_tab'] = __('Daily Product Management', $this->plugin_name);
 		return $settings_tabs;
 	}
 
-	public function settings_tab() {
-		woocommerce_admin_fields( $this->get_settings() );
-	}
-
-	public function get_product_cat_values() {
-		$product_cats = get_terms('product_cat', array( 'hide_empty' => false ) );
-		$array = ['null' => '-- Please select --'];
-		foreach ($product_cats as $cat) {
-			$array[$cat->slug] = $cat->name;
-		}
-
-		return $array;
-	}
-
-	public function get_time_options() {
-		$option_array = array();
-		$hour = 0;
-		while ($hour < 24) {
-			$hour = $hour > 9 ? $hour : '0' . $hour;
-			$option_array[$hour . ':00'] = $hour . ':00';
-			$option_array[$hour . ':30'] = $hour . ':30';
-			$hour++;
-		}
-		return $option_array;
-	}
-
-	public function get_day_options() {
-		$option_array = array();
-		foreach ($this->day_array as $day) {
-			$option_array[$day] = $day;
-		}
-		return $option_array;
-	}
-
+	// Get WC settings to go in settings tab
 	public function get_settings() {
 		// https://www.skyverge.com/blog/add-custom-options-to-woocommerce-settings/
 		$settings = array(
@@ -467,21 +524,47 @@ class Vbwc_Daily_Products_Admin {
 		return apply_filters( 'wc_settings_tab_wcdp_settings_tab', $settings );
 	}
 
+	// Update Woocommerce options
 	public function update_settings() {
 		woocommerce_update_options( $this->get_settings() );
 	}
 
-	public function get_day_terms_id_array() {
-		$terms = get_terms( $this->category_slug );
-		$id_array = array();
-
-		foreach ($terms as $term) {
-			$id_array[] = $term->term_id;
+	// Things to do when settings are saved in the Settings Tab
+	public function settings_saved() {
+		if ( get_option( 'wcdp_weekly_reset_enabled' ) === 'yes' ) {
+			$this->schedule_reset_day();
+		} else {
+			$this->clear_schedule_reset_day();
 		}
-
-		return $id_array;
 	}
 
+	
+	/**
+	 * Day Functions
+	 */
+	
+	// Apply days to appropriate products
+	public function apply_days_to_products( $post_id ) {
+		
+		// First remove day taxonomy from all products that have it
+		// --------------------------------------------------------
+		$this->reset_day_taxonomy();
+		
+
+		// Now apply the terms back onto the chosen products
+		// -------------------------------------------------
+		if ( 'product_settings' === $post_id && ! empty( $_POST['acf'] ) ) {
+			foreach ($_POST['acf'] as $day => $products) {
+				$term_slug = str_replace('field_', '', $day);
+				foreach ($products as $product_id) {
+					wp_set_object_terms($product_id, $term_slug, $this->category_slug, true);
+				}
+			}
+
+		}
+	}
+
+	// Reset the Day taxonomy on all products
 	public function reset_day_taxonomy() {
 		// Get array of all the term ids
 		$terms_array = $this->get_day_terms_id_array();
@@ -511,6 +594,38 @@ class Vbwc_Daily_Products_Admin {
 		}
 	}
 
+	// Schedule a reset of the day taxonomies
+	public function schedule_reset_day() {
+		if ( ! wp_next_scheduled( 'weekly_day_reset' ) ) {
+			wp_schedule_event( strtotime( get_option( 'wcdp_weekly_reset_time' ) . ':00' ), 'daily', 'weekly_day_reset' );
+		}
+	}
+
+	// Clear scheduled day taxonomy reset
+	public function clear_schedule_reset_day() {
+		if ( wp_next_scheduled( 'weekly_day_reset' ) ) {
+			wp_clear_scheduled_hook( 'weekly_day_reset' );
+		}
+	}
+
+	// If chosen day, reset days on all products
+	public function weekly_day_reset() {
+		if ( get_option( 'wcdp_weekly_reset_day' ) === date('l') ) {
+			$this->reset_day_taxonomy();
+		}
+	}
+
+	// Apply Days to products
+	public function update_products( $post_id ) {
+		$this->reset_day_taxonomy();
+		$this->apply_days_to_products( $post_id );
+	}
+
+	/**
+	 * Stock Functions
+	 */
+
+	// Reset the stock on all products with chosen class(es)
 	public function reset_stock() {
 		$args = array(
 			'post_type' => 'product',
@@ -543,76 +658,23 @@ class Vbwc_Daily_Products_Admin {
 		}
 	}
 
-	public function apply_days_to_products( $post_id ) {
-		
-		// First remove day taxonomy from all products that have it
-		// --------------------------------------------------------
-		$this->reset_day_taxonomy();
-		
-
-		// Now apply the terms back onto the chosen products
-		// -------------------------------------------------
-		if ( 'product_settings' === $post_id && ! empty( $_POST['acf'] ) ) {
-			foreach ($_POST['acf'] as $day => $products) {
-				$term_slug = str_replace('field_', '', $day);
-				foreach ($products as $product_id) {
-					wp_set_object_terms($product_id, $term_slug, $this->category_slug, true);
-				}
-			}
-
-		}
-	}
-
-	public function schedule_reset_day() {
-		if ( ! wp_next_scheduled( 'weekly_day_reset' ) ) {
-			wp_schedule_event( strtotime( get_option( 'wcdp_weekly_reset_time' ) . ':00' ), 'daily', 'weekly_day_reset' );
-		}
-	}
-
-	public function clear_schedule_reset_day() {
-		if ( wp_next_scheduled( 'weekly_day_reset' ) ) {
-			wp_clear_scheduled_hook( 'weekly_day_reset' );
-		}
-	}
-
+	// Schedule a stock reset
 	public function schedule_reset_stock() {
 		if ( ! wp_next_scheduled( 'daily_stock_reset' ) ) {
 			wp_schedule_event( strtotime( get_option( 'wcdp_stock_reset_time' ) . ':00' ), 'hourly', 'daily_stock_reset' );
 		}
 	}
 
+	// Clear the scheduled stock reset
 	public function clear_schedule_reset_stock() {
 		if ( wp_next_scheduled( 'daily_stock_reset' ) ) {
 			wp_clear_scheduled_hook( 'daily_stock_reset' );
 		}
 	}
 
+	// reset_stock wrapper
 	public function daily_stock_reset() {
 		$this->reset_stock();
-	}
-
-	public function weekly_day_reset() {
-		if ( get_option( 'wcdp_weekly_reset_day' ) === date('l') ) {
-			$this->reset_day_taxonomy();
-		}
-	}
-
-	public function update_products( $post_id ) {
-		$this->reset_day_taxonomy();
-		$this->apply_days_to_products( $post_id );
-	}
-
-	public function settings_saved() {
-
-		/**
-		 * Manage schedule
-		 */
-		$this->error_log( get_option( 'wcdp_weekly_reset_enabled' ) );
-		if ( get_option( 'wcdp_weekly_reset_enabled' ) === 'yes' ) {
-			$this->schedule_reset_day();
-		} else {
-			$this->clear_schedule_reset_day();
-		}
 	}
 
 	/**
