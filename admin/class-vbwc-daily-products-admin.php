@@ -83,6 +83,25 @@ class Vbwc_Daily_Products_Admin {
 
 		add_action( 'woocommerce_settings_saved', [$this, 'settings_saved']);
 
+		add_filter('acf/get_valid_field_group', function($field_group){
+
+			// Get assigned PUPs for current user
+			$assigned_pups = get_field('user_assigned_pick_up_points', 'user_' . get_current_user_id());
+
+			// Get PUP ID from key
+			$pup_id = str_replace( 'group_wcdp_', '', $field_group['key'] );
+
+			// If $pup_id consists only of numerical characters and 
+			// the integer is not one of the assigned pups, then set
+			// field group to inactive
+			if ( ctype_digit($pup_id) && ! in_array( (int) $pup_id, $assigned_pups ) ) {
+				$field_group['active'] = 0;
+			}
+
+			return $field_group;
+
+		});
+
 	}
 
 	public function error_log( $message ) {
@@ -238,6 +257,7 @@ class Vbwc_Daily_Products_Admin {
 	 */
 
 	public function get_day_settings() {
+		$this->active_days = [];
 		foreach ($this->day_array as $day) {
 			if ( get_option( 'wcdp_day_' . sanitize_title( $day ) ) === 'yes' ) {
 				$this->active_days[] = $day;
