@@ -79,7 +79,7 @@ class Vbwc_Daily_Products_Admin {
 		add_action('daily_stock_reset', [$this, 'daily_stock_reset']);
 
 		// On Settings update
-		add_action( 'woocommerce_update_options_wcdp_settings_tab', [$this, 'update_settings'] );
+		// add_action( 'woocommerce_update_options_wcdp_settings_tab', [$this, 'update_settings'] );
 
 		add_action( 'woocommerce_settings_saved', [$this, 'settings_saved']);
 
@@ -94,8 +94,10 @@ class Vbwc_Daily_Products_Admin {
 			// If $pup_id consists only of numerical characters and 
 			// the integer is not one of the assigned pups, then set
 			// field group to inactive
-			if ( ctype_digit($pup_id) && ! in_array( (int) $pup_id, $assigned_pups ) ) {
-				$field_group['active'] = 0;
+			if ( ! is_null($assigned_pups) ) {
+				if ( ctype_digit($pup_id) && ! in_array( (int) $pup_id, $assigned_pups ) ) {
+					$field_group['active'] = 0;
+				}
 			}
 
 			return $field_group;
@@ -177,12 +179,13 @@ class Vbwc_Daily_Products_Admin {
 		$field_array = array();
 		
 		foreach ($this->active_days as $day) {
-			$suffix = sanitize_title( $day ) . $suffix;
+
+			$uid = sanitize_title( $day ) . $suffix;
 
 			$field = array(
-				'key' => 'field_wcdp-' . $suffix,
+				'key' => 'field_wcdp-' . $uid,
 				'label' => $day,
-				'name' => 'product_day_' . $suffix,
+				'name' => 'product_day_' . $uid,
 				'type' => 'relationship',
 				'instructions' => '',
 				'required' => 1,
@@ -376,6 +379,10 @@ class Vbwc_Daily_Products_Admin {
 	public function add_settings_tab( $settings_tabs ) {
 		$settings_tabs['wcdp_settings_tab'] = __('Daily Product Management', $this->plugin_name);
 		return $settings_tabs;
+	}
+
+	public function settings_tab() {
+		woocommerce_admin_fields( $this->get_settings() );
 	}
 
 	// Get WC settings to go in settings tab
@@ -574,9 +581,11 @@ class Vbwc_Daily_Products_Admin {
 		// Now apply the terms back onto the chosen products
 		// -------------------------------------------------
 		if ( 'product_settings' === $post_id && ! empty( $_POST['acf'] ) ) {
+			vb_log($_POST['acf']);
 			foreach ($_POST['acf'] as $day => $products) {
 				$term_slug = str_replace('field_', '', $day);
 				foreach ($products as $product_id) {
+
 					wp_set_object_terms($product_id, $term_slug, $this->category_slug, true);
 				}
 			}
